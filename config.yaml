@@ -1,0 +1,219 @@
+# ============================================================
+# config.yaml — Indice de Salud de Planta v2.0
+# ============================================================
+# Proyecto : plant-health-regression
+# Version  : 2.0
+# Fecha    : 2026-11-18
+#
+# TRANSPARENCIA:
+#   El dataset es SINTETICO. Plant_Health_Status fue generado
+#   algoritmicamente desde Soil_Moisture y Nitrogen_Level mediante
+#   umbrales fijos (descubiertos por un Arbol de Decision con
+#   accuracy=100%). El resto de variables es ruido independiente.
+#
+#   Este indice es una construccion definida por nosotros,
+#   no una medicion real de salud vegetal.
+# ============================================================
+
+indice_salud:
+
+  version: "2.0"
+
+  descripcion: >
+    Índice continuo de 0 a 100 construido con las 11 variables de sensor.
+    En el modo minimo, el menor puntaje de Soil_Moisture y Nitrogen_Level
+    aporta hasta 85 puntos. Las otras nueve variables aportan hasta 15.
+    Los pesos 68 y 17 se usan individualmente en el modo suma.
+
+  formula: "minimo"  # Alternativa: "suma"
+  # minimo: 85 * min(score_humedad, score_nitrogeno) + sum(aportes de las otras nueve)
+  # suma: 100 * sum(peso_i * score_i) / sum(peso_i)
+
+  # ----------------------------------------------------------
+  # FUNCION DE SCORING TRAPEZOIDAL
+  # ----------------------------------------------------------
+  #  score
+  #  1.0 |      ____________
+  #      |     /            \
+  #  0.0 |____/              \____
+  #      abs_min  ideal_min  ideal_max  abs_max
+  # ----------------------------------------------------------
+
+  scoring:
+    metodo: trapezoidal
+    clamp: true
+
+  # ----------------------------------------------------------
+  # VARIABLES — componentes del indice (11 variables)
+  # Peso total = 100
+  # ----------------------------------------------------------
+  variables:
+
+    # ---- TOP-2 (peso total = 85%) --------------------------
+    # Pesos derivados de la importancia RF (RF_imp=0.6941 y 0.1679)
+    # escalados para que los 2 sumen 85% del total:
+    #   w(SM) = 0.6941/0.8620 * 85 = 68.45 → 68
+    #   w(NL) = 0.1679/0.8620 * 85 = 16.55 → 17
+
+    Soil_Moisture:
+      peso: 68
+      unidad: "%"
+      ideal_min: 30.0    # Umbral "Healthy" del Arbol de Decision (DT)
+      ideal_max: 40.0    # Maximo observado en el dataset
+      abs_min:   10.0    # Minimo observado
+      abs_max:   41.0    # Extension minima sobre el max (evita score=0 en 40)
+      fuente: "Arbol de Decision — umbral extraido del dataset sintetico"
+      nota: >
+        El umbral DT=20 (limite High Stress) corresponde exactamente a
+        score=0.50 en el flanco izquierdo: (20-10)/(30-10) = 0.5.
+        El umbral DT=30 (inicio Healthy) es el ideal_min (score=1.0).
+
+    Nitrogen_Level:
+      peso: 17
+      unidad: "mg N / kg suelo"
+      ideal_min: 20.0    # Umbral "Healthy" del DT (N>20 con SM>30 → Healthy)
+      ideal_max: 50.0    # Maximo observado
+      abs_min:   10.0
+      abs_max:   51.0
+      fuente: "Arbol de Decision — umbral extraido del dataset sintetico"
+      nota: >
+        El umbral DT=15 corresponde a score=0.50: (15-10)/(20-10) = 0.5.
+        El umbral DT=20 es el ideal_min (score=1.0).
+
+    # ---- RESTO-9 (peso total = 15%) -----------------------
+    # Pesos proporcionales a la importancia RF de cada variable.
+    # Total importancia del Resto-9 en RF = 0.1380
+    #   w_i = (imp_i / 0.1380) * 15
+    # TODOS marcados como fuente: PENDIENTE — rangos provisionales
+    # basados en el rango observado en el dataset sintetico.
+    # Requieren validacion agronomica con datos reales.
+
+    Soil_pH:
+      peso: 2
+      unidad: "pH"
+      ideal_min: 6.0
+      ideal_max: 7.0
+      abs_min:   5.5
+      abs_max:   7.5
+      fuente: "PENDIENTE"
+      nota: "Rango provisional. Franja central del rango observado [5.5, 7.5]."
+
+    Ambient_Temperature:
+      peso: 2
+      unidad: "grados Celsius"
+      ideal_min: 20.0
+      ideal_max: 28.0
+      abs_min:   18.0
+      abs_max:   30.0
+      fuente: "PENDIENTE"
+      nota: "Rango provisional. Franja central del rango observado [18, 30]."
+
+    Potassium_Level:
+      peso: 2
+      unidad: "mg K / kg suelo"
+      ideal_min: 25.0
+      ideal_max: 42.0
+      abs_min:   10.0
+      abs_max:   50.0
+      fuente: "PENDIENTE"
+      nota: "Rango provisional. Variable de ruido en el dataset sintetico."
+
+    Light_Intensity:
+      peso: 2
+      unidad: "lux (relativo al sensor)"
+      ideal_min: 500.0
+      ideal_max: 900.0
+      abs_min:   200.0
+      abs_max:   1000.0
+      fuente: "PENDIENTE"
+      nota: "Rango provisional. Franja central del rango observado [200, 1000]."
+
+    Phosphorus_Level:
+      peso: 2
+      unidad: "mg P / kg suelo"
+      ideal_min: 25.0
+      ideal_max: 42.0
+      abs_min:   10.0
+      abs_max:   50.0
+      fuente: "PENDIENTE"
+      nota: "Rango provisional. Variable de ruido en el dataset sintetico."
+
+    Chlorophyll_Content:
+      peso: 2
+      unidad: "unidades relativas (SPAD aprox.)"
+      ideal_min: 38.0
+      ideal_max: 50.0
+      abs_min:   20.0
+      abs_max:   50.5    # Ligera extension sobre max observado (50.0)
+      fuente: "PENDIENTE"
+      nota: "Rango provisional basado en el dataset observado."
+
+    Humidity:
+      peso: 1
+      unidad: "%"
+      ideal_min: 50.0
+      ideal_max: 65.0
+      abs_min:   40.0
+      abs_max:   70.0
+      fuente: "PENDIENTE"
+      nota: "Rango provisional. Franja central del rango observado [40, 70]."
+
+    Soil_Temperature:
+      peso: 1
+      unidad: "grados Celsius"
+      ideal_min: 17.0
+      ideal_max: 23.0
+      abs_min:   15.0
+      abs_max:   25.0
+      fuente: "PENDIENTE"
+      nota: "Rango provisional. Franja central del rango observado [15, 25]."
+
+    Electrochemical_Signal:
+      peso: 1
+      unidad: "mV (relativo al sensor)"
+      ideal_min: 0.8
+      ideal_max: 1.5
+      abs_min:   0.0
+      abs_max:   2.0
+      fuente: "PENDIENTE"
+      nota: "Rango provisional. Variable de ruido en el dataset sintetico."
+
+  # ----------------------------------------------------------
+  # VARIABLES EXCLUIDAS DEL INDICE Y DEL MODELO
+  # ----------------------------------------------------------
+  variables_excluidas:
+    - Timestamp           # usar solo features derivadas
+    - Plant_ID            # identificador de individuo
+    - Plant_Health_Status # target original — no contaminar modelo ni indice
+
+  # ----------------------------------------------------------
+  # FEATURES DERIVADAS DE TIMESTAMP (opcionales)
+  # ----------------------------------------------------------
+  features_temporales:
+    - nombre: hora_dia
+      descripcion: "Hora del dia (0-23)"
+    - nombre: dia_semana
+      descripcion: "Dia de la semana (0-6)"
+    - nombre: mes
+      descripcion: "Mes del anio (1-12)"
+
+  # ----------------------------------------------------------
+  # UMBRALES DE CATEGORIA
+  # ----------------------------------------------------------
+  umbrales_categoria:
+    Excelente:          90.0   # indice >= 90
+    Atencion_Requerida: 50.0   # 50 <= indice < 90
+    Critico:             0.0   # indice < 50
+
+  # ----------------------------------------------------------
+  # VALIDACION DE COHERENCIA (referencia, no construccion)
+  # ----------------------------------------------------------
+  validacion:
+    variable_referencia: Plant_Health_Status
+    mapeo_esperado:
+      Healthy:         "Excelente"
+      Moderate Stress: "Atencion Requerida"
+      High Stress:     "Critico"
+    nota: >
+      Plant_Health_Status se utiliza para calibrar y evaluar categorías.
+      El cálculo del índice por muestra solo requiere variables de sensor.
